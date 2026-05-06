@@ -67,9 +67,17 @@ export default function App() {
       setLoading(true);
       try {
         const response = await fetch(`/api/v1/monthly-report?month=${selectedMonth}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
         const json = await response.json();
-        setData(json.data);
-        setSummary(json.summary);
+        
+        if (json && json.status === 'success') {
+          setData(json.data || []);
+          setSummary(json.summary || null);
+        } else {
+          console.error('Invalid API response format:', json);
+        }
       } catch (error) {
         console.error('Failed to fetch data:', error);
       } finally {
@@ -190,7 +198,7 @@ export default function App() {
           <StatCard 
             icon={<FileText size={22}/>} 
             label="신규 허가 건수" 
-            value={summary?.total + "건"} 
+            value={summary ? summary.total + "건" : "-"} 
             trend="+12.4%"
             isPositive
             color="text-blue-600"
@@ -207,7 +215,7 @@ export default function App() {
           <StatCard 
             icon={<ShieldCheck size={22}/>} 
             label="4등급 (고위험)" 
-            value={summary?.highRisk + "건"} 
+            value={summary ? summary.highRisk + "건" : "-"} 
             trend="-2 items"
             isPositive={false}
             color="text-rose-600"
@@ -216,7 +224,7 @@ export default function App() {
           <StatCard 
             icon={<CreditCard size={22}/>} 
             label="보험 등재율" 
-            value={summary?.insuranceRate + "%"} 
+            value={summary ? summary.insuranceRate + "%" : "-"} 
             trend="+5.4% YoY"
             isPositive
             color="text-purple-600"
