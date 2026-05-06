@@ -1,0 +1,9 @@
+{
+  "name": "MediReport - Monthly Medical Device Approval",
+  "description": "식품의약품안전처 허가 데이터와 건강보험심사평가원 수가 정보를 연계한 통합 대시보드 리포트",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "Data Visualization",
+    "Full-stack API Integration"
+  ]
+}
