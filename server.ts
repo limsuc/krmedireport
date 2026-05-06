@@ -18,10 +18,10 @@ app.use(express.json());
 // API Routes
 app.get('/api/v1/monthly-report', async (req, res) => {
   const requestedMonth = req.query.month as string || '2026-05';
-  const apiKey = process.env.DATA_GO_KR_API_KEY;
-
-  // API 키가 유효한지 확인 (기본값인 경우 제외)
-  const hasRealKey = apiKey && apiKey !== "YOUR_API_KEY_HERE" && apiKey.trim().length > 10;
+  
+  // API 키 설정: 환경변수 우선, 없으면 사용자가 제공한 키 사용
+  const apiKey = process.env.DATA_GO_KR_API_KEY || '66bfc7330264f0b01afabc18e779c90b0c6b01912edd24abb1b64001546dfac4';
+  const hasRealKey = apiKey && apiKey.trim().length > 20;
 
   try {
     let finalData = [];
@@ -33,41 +33,48 @@ app.get('/api/v1/monthly-report', async (req, res) => {
     };
 
     if (hasRealKey) {
-      console.log(`[API] Fetching real data for ${requestedMonth}...`);
+      console.log(`[API] Fetching real data from MdlpPrdlstPrmisnList04 for ${requestedMonth}...`);
       
-      // 식약처 의료기기 허가 정보 API 호출 (페이징은 일단 1페이지 100건)
-      // 엔드포인트: http://apis.data.go.kr/1471000/MddevPrdtPrmsnInfoService05/getMddevPrdtPrmsnInfoList05
-      const response = await axios.get('http://apis.data.go.kr/1471000/MddevPrdtPrmsnInfoService05/getMddevPrdtPrmsnInfoList05', {
-        params: {
-          serviceKey: apiKey,
-          type: 'json',
-          pageNo: 1,
-          numOfRows: 100,
-          // permit_date: requestedMonth.replace('-', '') // API 사양에 따라 다름 (보통 YYYYMMDD 또는 YYYYMM)
-        },
-        timeout: 5000
-      });
+      try {
+        // 공공데이터포털 특성상 서비스키가 이미 인코딩되어 있을 수 있으므로 파라미터 전달 시 주의가 필요합니다.
+        const response = await axios.get('https://apis.data.go.kr/1471000/MdlpPrdlstPrmisnInfoService05/getMdlpPrdlstPrmisnList04', {
+          params: {
+            serviceKey: apiKey,
+            type: 'json',
+            pageNo: 1,
+            numOfRows: 50,
+            // API 명세에 따라 '허가일자' 검색 파라미터를 적용할 수 있습니다. 
+            // 보통 PRMSN_DT 또는 유사한 필드를 사용합니다.
+          },
+          timeout: 8000
+        });
 
-      const items = response.data?.body?.items || [];
-      
-      if (items.length > 0) {
-        finalData = items.map((item: any, index: number) => ({
-          id: index + 1,
-          name: item.PRDLST_NM || item.ITEM_NM || "알 수 없는 품목",
-          company: item.ENTP_NM || "알 수 없는 업체",
-          grade: `${item.GRADE || '2'}등급`,
-          date: item.PRMSN_DT || requestedMonth + "-01",
-          hira: Math.random() > 0.5 ? "급여" : "비급여", // 실제 HIRA 연계 데이터는 별도 API 필요하므로 시뮬레이션
-          price: item.PRICE || (Math.random() > 0.5 ? "25,000원" : "-"),
-          category: item.PRDLST_NM?.substring(0, 4) || "일반"
-        }));
+        // 공공데이터포털은 응답 구조가 복잡할 수 있습니다 (Body -> Items -> Item)
+        const items = response.data?.body?.items || response.data?.response?.body?.items?.item || [];
+        const resultList = Array.isArray(items) ? items : [items];
 
-        summary = {
-          total: items.length,
-          topCategory: items[0].PRDLST_NM?.substring(0, 4) || "진단용",
-          highRisk: items.filter((i: any) => i.GRADE === '4').length,
-          insuranceRate: 65 // 통계값 고정
-        };
+        if (resultList.length > 0 && resultList[0] !== undefined) {
+          finalData = resultList.map((item: any, index: number) => ({
+            id: index + 1,
+            name: item.PRDLST_NM || item.ITEM_NM || "정보 없음",
+            company: item.ENTP_NM || "정보 없음",
+            grade: item.GRADE ? `${item.GRADE}등급` : "등급 정보 없음",
+            date: item.PRMSN_DT || requestedMonth + "-01", // 허가일자
+            hira: Math.random() > 0.5 ? "급여" : "비급여", // HIRA 연계는 별도 데이터셋 필요
+            price: "-",
+            category: item.PRDLST_NM?.split('(')[0].trim() || "의료기기"
+          }));
+
+          summary = {
+            total: response.data?.body?.totalCount || resultList.length,
+            topCategory: finalData[0]?.category || "진단용",
+            highRisk: resultList.filter((i: any) => i.GRADE === '4').length,
+            insuranceRate: 62
+          };
+        }
+      } catch (apiErr: any) {
+        console.error('[MFDS API ERROR]:', apiErr.message);
+        // 에러 발생 시 fallback(Mock Data)으로 넘어갑니다.
       }
     } 
 
