@@ -16,7 +16,8 @@ import {
   Calendar,
   Filter,
   ArrowUpRight,
-  Database
+  Database,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -50,11 +51,22 @@ export default function App() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('2026-05');
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+
+  const months = [
+    { label: '2026년 05월', value: '2026-05' },
+    { label: '2026년 04월', value: '2026-04' },
+    { label: '2026년 03월', value: '2026-03' },
+    { label: '2026년 02월', value: '2026-02' },
+    { label: '2026년 01월', value: '2026-01' },
+  ];
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
-        const response = await fetch('/api/v1/monthly-report');
+        const response = await fetch(`/api/v1/monthly-report?month=${selectedMonth}`);
         const json = await response.json();
         setData(json.data);
         setSummary(json.summary);
@@ -66,7 +78,7 @@ export default function App() {
     };
 
     fetchData();
-  }, []);
+  }, [selectedMonth]);
 
   const filteredData = useMemo(() => {
     return data.filter(item => 
@@ -125,11 +137,46 @@ export default function App() {
           </div>
           
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <div className="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-center">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                <Calendar size={10} /> Active reporting Period
-              </span>
-              <span className="font-black text-blue-600 text-lg tracking-tight tabular-nums">2026. 05. 01 — 05. 31</span>
+            <div className="relative">
+              <button 
+                onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
+                className="bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-200 flex flex-col justify-center hover:border-blue-400 transition-all cursor-pointer group w-full sm:w-[220px]"
+              >
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5"><Calendar size={10} /> Select Period</span>
+                  <ChevronDown size={12} className={cn("transition-transform", isMonthPickerOpen && "rotate-180")} />
+                </span>
+                <span className="font-black text-blue-600 text-lg tracking-tight tabular-nums flex items-center justify-between">
+                  {months.find(m => m.value === selectedMonth)?.label}
+                </span>
+              </button>
+
+              <AnimatePresence>
+                {isMonthPickerOpen && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-20"
+                  >
+                    {months.map((m) => (
+                      <button
+                        key={m.value}
+                        onClick={() => {
+                          setSelectedMonth(m.value);
+                          setIsMonthPickerOpen(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-5 py-3 text-sm font-bold transition-colors hover:bg-slate-50",
+                          selectedMonth === m.value ? "text-blue-600 bg-blue-50/50" : "text-slate-600"
+                        )}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
             <button className="bg-slate-900 text-white p-3 rounded-2xl shadow-xl shadow-slate-200 flex items-center justify-center gap-2 hover:bg-slate-800 hover:-translate-y-0.5 transition-all active:scale-95 group">
               <Download size={20} className="group-hover:rotate-12 transition-transform" />
@@ -183,7 +230,7 @@ export default function App() {
             <div className="space-y-1">
               <h2 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                 <Database className="text-blue-600" size={24} />
-                5월 상세 허가 품목 리스트
+                {months.find(m => m.value === selectedMonth)?.label} 상세 허가 품목 리스트
               </h2>
               <p className="text-sm font-bold text-slate-400 uppercase tracking-widest pl-9">
                 Latest MFDS & HIRA Integrated Records
