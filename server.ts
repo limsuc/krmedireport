@@ -14,8 +14,23 @@ async function startServer() {
   app.use(express.json());
 
   // API Routes
-  app.get('/api/v1/monthly-report', (req, res) => {
+  app.get('/api/v1/monthly-report', async (req, res) => {
     const requestedMonth = req.query.month as string || '2026-05';
+    const apiKey = process.env.DATA_GO_KR_API_KEY;
+
+    // 만약 API 키가 설정되어 있다면 실제 API 호출을 시도하는 로직의 골격입니다.
+    if (apiKey && apiKey !== "YOUR_API_KEY_HERE") {
+      try {
+        console.log(`Fetching real data for ${requestedMonth} using API Key...`);
+        // 예시: 식약처 의료기기 허가 정보 API 호출 (실제 URL/파라미터는 명세서 확인 필요)
+        // const response = await axios.get('http://apis.data.go.kr/1471000/MddevPrdtPrmsnInfoService05/getMddevPrdtPrmsnInfoList05', {
+        //   params: { serviceKey: apiKey, type: 'json', permit_date: requestedMonth.replace('-', ''), numOfRows: 100 }
+        // });
+        // ... 데이터를 가공하여 enrichedData를 생성 ...
+      } catch (error) {
+        console.error('Real API Fetch failed, falling back to mock:', error);
+      }
+    }
     
     // Mock Data Generator based on month
     const isMay = requestedMonth === '2026-05';
