@@ -198,7 +198,7 @@ export default function App() {
           <StatCard 
             icon={<FileText size={22}/>} 
             label="신규 허가 건수" 
-            value={summary?.total ? summary.total + "건" : "-"} 
+            value={summary && summary.total !== undefined ? summary.total + "건" : "-"} 
             trend="+12.4%"
             isPositive
             color="text-blue-600"
@@ -215,7 +215,7 @@ export default function App() {
           <StatCard 
             icon={<ShieldCheck size={22}/>} 
             label="4등급 (고위험)" 
-            value={summary?.highRisk ? summary.highRisk + "건" : "-"} 
+            value={summary && summary.highRisk !== undefined ? summary.highRisk + "건" : "-"} 
             trend="-2 items"
             isPositive={false}
             color="text-rose-600"
@@ -224,7 +224,7 @@ export default function App() {
           <StatCard 
             icon={<CreditCard size={22}/>} 
             label="보험 등재율" 
-            value={summary?.insuranceRate ? summary.insuranceRate + "%" : "-"} 
+            value={summary && summary.insuranceRate !== undefined ? summary.insuranceRate + "%" : "-"} 
             trend="+5.4% YoY"
             isPositive
             color="text-purple-600"

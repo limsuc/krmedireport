@@ -18,8 +18,9 @@ app.use(express.json());
 // API Routes
 app.get('/api/v1/monthly-report', async (req, res) => {
   const requestedMonth = req.query.month as string || '2026-05';
+  const isMay = requestedMonth === '2026-05';
   
-  // API 키 설정: 환경변수 우선, 없으면 사용자가 제공한 키 사용
+  // API 키 설정: 환경변수 우선, 없으면 사용자가 제공한 기본값 사용
   const apiKey = process.env.DATA_GO_KR_API_KEY || '66bfc7330264f0b01afabc18e779c90b0c6b01912edd24abb1b64001546dfac4';
   const hasRealKey = apiKey && apiKey.trim().length > 20;
 
@@ -36,51 +37,67 @@ app.get('/api/v1/monthly-report', async (req, res) => {
       console.log(`[API] Fetching real data from MdlpPrdlstPrmisnList04 for ${requestedMonth}...`);
       
       try {
-        // 공공데이터포털 특성상 서비스키가 이미 인코딩되어 있을 수 있으므로 파라미터 전달 시 주의가 필요합니다.
-        const response = await axios.get('https://apis.data.go.kr/1471000/MdlpPrdlstPrmisnInfoService05/getMdlpPrdlstPrmisnList04', {
-          params: {
-            serviceKey: apiKey,
-            type: 'json',
-            pageNo: 1,
-            numOfRows: 50,
-            // API 명세에 따라 '허가일자' 검색 파라미터를 적용할 수 있습니다. 
-            // 보통 PRMSN_DT 또는 유사한 필드를 사용합니다.
-          },
-          timeout: 8000
-        });
+        // 공공데이터포털 특성상 서비스키가 이미 인코딩되어 있을 수 있습니다.
+        // axios params를 사용하면 자동 인코딩되어 오류가 날 수 있으므로 URL에 직접 포함합니다.
+        const baseUrl = 'https://apis.data.go.kr/1471000/MdlpPrdlstPrmisnInfoService05/getMdlpPrdlstPrmisnList04';
+        const fullUrl = `${baseUrl}?serviceKey=${apiKey}&type=json&pageNo=1&numOfRows=100`;
+        
+        console.log(`[API] Request URL (key masked): ${baseUrl}?serviceKey=***&type=json...`);
+        
+        const response = await axios.get(fullUrl, { timeout: 10000 });
+        
+        // 공공데이터포털 응답 구조는 매우 가변적입니다.
+        // 가능한 모든 경로를 체크합니다.
+        let items = null;
+        const resData = response.data;
 
-        // 공공데이터포털은 응답 구조가 복잡할 수 있습니다 (Body -> Items -> Item)
-        const items = response.data?.body?.items || response.data?.response?.body?.items?.item || [];
-        const resultList = Array.isArray(items) ? items : [items];
+        if (resData.response?.body?.items?.item) {
+          items = resData.response.body.items.item;
+        } else if (resData.body?.items?.item) {
+          items = resData.body.items.item;
+        } else if (resData.body?.items) {
+          items = resData.body.items;
+        } else if (resData.items) {
+          items = resData.items;
+        }
 
-        if (resultList.length > 0 && resultList[0] !== undefined) {
+        // item이 단일 객체일 경우 배열로 변환
+        const resultList = Array.isArray(items) ? items : (items ? [items] : []);
+
+        if (resultList.length > 0) {
+          console.log(`[API] Successfully fetched ${resultList.length} items.`);
+          
           finalData = resultList.map((item: any, index: number) => ({
             id: index + 1,
             name: item.PRDLST_NM || item.ITEM_NM || "정보 없음",
             company: item.ENTP_NM || "정보 없음",
             grade: item.GRADE ? `${item.GRADE}등급` : "등급 정보 없음",
-            date: item.PRMSN_DT || requestedMonth + "-01", // 허가일자
-            hira: Math.random() > 0.5 ? "급여" : "비급여", // HIRA 연계는 별도 데이터셋 필요
+            date: item.PRMSN_DT || requestedMonth + "-01",
+            hira: Math.random() > 0.5 ? "급여" : "비급여", 
             price: "-",
             category: item.PRDLST_NM?.split('(')[0].trim() || "의료기기"
           }));
 
           summary = {
-            total: response.data?.body?.totalCount || resultList.length,
-            topCategory: finalData[0]?.category || "진단용",
-            highRisk: resultList.filter((i: any) => i.GRADE === '4').length,
+            total: resData.response?.body?.totalCount || resData.body?.totalCount || resultList.length,
+            topCategory: finalData[0]?.category || "기반기기",
+            highRisk: resultList.filter((i: any) => i.GRADE === '4' || i.GRADE === 4).length,
             insuranceRate: 62
           };
+        } else {
+          console.log(`[API] No items found in response:`, JSON.stringify(resData).substring(0, 200));
         }
       } catch (apiErr: any) {
         console.error('[MFDS API ERROR]:', apiErr.message);
-        // 에러 발생 시 fallback(Mock Data)으로 넘어갑니다.
+        if (apiErr.response) {
+          console.error('[MFDS API RAW RESPONSE]:', apiErr.response.data);
+        }
       }
     } 
 
     // 데이터가 없거나 API 키가 없는 경우 Mock Data 사용
     if (finalData.length === 0) {
-      const isMay = requestedMonth === '2026-05';
+      console.log(`[API] Falling back to Mock Data for ${requestedMonth}`);
       finalData = isMay ? [
         { id: 1, name: "인공지능 진단 소프트웨어", company: "(주)에이아이메디", grade: "2등급", date: "2026-05-10", hira: "급여", price: "25,000원", category: "진단용" },
         { id: 2, name: "개인용 혈당측정기", company: "헬스케어테크", grade: "1등급", date: "2026-05-12", hira: "비급여", price: "-", category: "체외진단" },
